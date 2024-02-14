@@ -1,0 +1,273 @@
+---
+title: "Practica 2 Bayesianos"
+author: "Sebastian Diaz"
+date: "2023-11-15"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Lectura de Datos
+```{r}
+datos1<- read.csv("train.csv",sep=";",stringsAsFactors=FALSE, fileEncoding="latin1")
+View(datos1)
+datos=datos1$count
+```
+
+```{r}
+str(datos1)
+```
+En esta práctica, la base de datos que hemos escogido contiene información acerca del número de bicicletas de servicio público que se han alquilado según distintas variables ambientales. Las variables con las que contamos son las siguientes:
+1. year (2011 o 2012)
+2. hour: (de 0h a 23h)
+3.season: 1 = winter, 2 = spring, 3 = summer, 4 = autumn
+4. holiday: si un día es festivo o no festivo
+5. workingday: laborable o no laborable
+6. weather: 1 a 4 de mayor a peor clima
+7. temp ( en grados)
+8. atemp: sensación térmica ( en grados)
+9. humidity: humedad relativa
+10. windspeed: velocidad del viento en km/h
+11. count: número total de alquileres de bicicletas
+
+
+
+# Inferencia Clásica
+
+En nuestro trabajo, en el que trabajamos con una distribución Poisson, mediante el estimador de máxima verosimilitud tratamos de obtener el valor del parámetro. Mediante esta medida frecuentista obtendremos el número medio de alquileres de bicicletas que se producen en un día, es decir, lo que representa el parámetro en una distribución Poisson que es el tiempo entre sucesos.
+
+## Estimación Puntual
+Cogemos los datos de Otoño para realizar la estimación.
+```{r}
+l=90*2
+x_ot=subset(datos1,season==4)
+x1=sum(x_ot$count)
+(EMV= x1/l)
+(Media_Estacion=EMV*90)
+```
+
+## Intervalo de Confianza
+Calculamos así el intervalo de confianza frecuentista. Posteriormente, cuando realicemos la inferencia bayesiana explicaremos las diferencias que existen a la hora de obtener intervalos de confianza (inferencia clásica) e intervalos de credibilidad (inferencia bayesiana).
+```{r}
+landa= EMV
+z=pnorm(0.95,0,1)
+var=sqrt(landa/l)
+
+(intervalo <- c(landa-z*var,landa+z*var))
+
+
+```
+## Contraste de Hipotesis
+
+H0 : θ ≤ 2089
+H1 : θ > 2089
+
+```{r}
+landa1=2089
+
+(estadistico=(landa-landa1)/sqrt(landa/l))
+
+```
+Obtenemos un valor del estadistico de _0.03587 por lo que sxe encuentra en la región de aceptacion y no podemos rechazar que la media en un dia sea menor o igual que 2089.
+
+
+
+# Inferencia Bayesiana
+## Información a Priori
+En este caso X será el numero de bicicletas alquiladas durante el Otoño, siendo t el numero de dias (t=90), ya que cada estacion esta formada por 3 meses, y el numero medio de bicicletas alquiladas en un dia θ.
+
+La información a priori se refiere al conocimiento previo que se tiene sobre un parámetro antes de observar los datos. Aplicado a nuestro caso, consistiria en observar los promedios de alquiler de bicicletas en las estaciones, días, horas... del año anterior. 
+
+INSERTAR TABLA
+
+Observamos los valores del numero medio de bicicletas alquiladas por día en las diferentes estaciones. Destacamos el valor de Otoño de 2011 que es 1672, ya que sera el valor que trataremos de inferir en el 2012. 
+Por lo tanto teniendo en cuenta todo el marco teorico anterior, nuestros parametros a priori seran α=1672, β=1 y por ultimo el numero total de observaciones en Otoño de 2012 es de 225496.
+
+# Estimacion Puntual e Intervalo de Credibilidad
+
+A la hora de realizar los intervalos de credibilidad, es decir, los intervalos de confianza en inferencia bayesiana, presenta alguna diferencia con respecto a la forma de elaborar los intervalos en inferencia clásica. 
+Cuando realizábamos intervalos en inferencia clásica, estos dependían de la muestra que eligiésemos de nuestra población para después calcularlos. Es decir, en inferencia clásica, el (1-α) de los intervalos contendrán el verdadero valor del parámetro. 
+Sin embargo, en inferencia bayesiana esto no es así. En inferencia bayesiana hay que considerar la curva de la función de densidad a posteriori, y si el área que deja es igual al (1- α)%, entonces el verdadero parámetro estará entre X e Y  con una probabilidad (1- α). Por consiguiente, cuando hablamos de intervalos de credibilidad en inferencia bayesiana, estos no dependen de la muestra sino que aportan una estimación poblacional
+```{r}
+t=90
+alpha=1672
+beta=1
+x <- 225496
+
+
+
+media_theta_priori= alpha/beta
+alpha_posteriori= alpha+x
+beta_posteriori= beta+t
+w= beta/(beta+t)
+theta_gorro= x/t
+media_theta_posteriori= w*media_theta_priori+(1-w)*theta_gorro
+
+cat("Estimacion Puntual: ", media_theta_posteriori, "\n")
+
+```
+# Intervalo de Credibilidad
+
+```{r}
+
+nivel_significacion=0.05
+
+int_credibilidad1= c(qgamma(nivel_significacion/2, alpha_posteriori,beta_posteriori))
+
+int_credibilidad2= c(qgamma(1-nivel_significacion/2, alpha_posteriori,beta_posteriori))
+
+int_credibilidad= c(int_credibilidad1,int_credibilidad2)
+
+cat("Intervalo de credibilidad : ", int_credibilidad, "\n")
+```
+
+
+### Desviacion tipica
+```{r}
+dt= (alpha+x)/((beta+t)^2)
+print(dt)
+```
+
+
+## Predicción 
+
+```{r}
+#Distribución a priori
+#La media de los datos a priori es nuestro parámetro alpha
+alpha =  (sum(datos1$count[(datos1$year == 2011) & (datos1$season == 4)]))/90
+beta = 1 
+secuencia_prior <- seq((alpha-120),(alpha+120),1)
+(str(pxpredpri <- dgamma(x = secuencia_prior,shape = alpha, rate=beta)))
+
+```
+
+
+```{r}
+#Distribucion a posteriori
+x=sum(datos1$count[(datos1$year == 2012) & (datos1$season == 4)])
+EMV=x/t
+apost = alpha+x
+bpost = beta+t
+secuencia_post <- seq((EMV-120),(EMV+120),1)
+(pxpredpost <- dgamma(secuencia_post, shape = apost, rate=bpost))
+```
+
+
+```{r}
+#verosimilitud
+#tenemos que poner valores enteros ya que recordamos que poisson es distribución
+#discreta, además vamos a incluir en la secuencia los valores necesarios para
+#visualizar después ambas distribuciones a priori y posteriori.
+secuencia_vero<-seq((1500),(2600),1)
+(   summary(vero <- dpois(secuencia_vero, (as.integer(x/t)) ) )  )     
+```
+
+
+```{r}
+# Gráfico
+#la distribución a priori y a posteriori no solo distan en forma si no en
+#posición en el eje, or ello en el gráfico se ve de esta forma
+
+fmax <- max(pxpredpost,pxpredpri,vero)
+plot(secuencia_vero,vero,type='l',lwd=3,col='blue',ylim=c(0,fmax),xlab=expression(theta), ylab="fd")
+lines(secuencia_post,pxpredpost,type='l',lwd=3,col="green")
+lines(secuencia_prior,pxpredpri,type='l',lwd=3,col="red")
+legend(x = "topleft",         
+       legend = c("dist a posteriori","f verosimilitud", "dist a priori"), 
+       col = c("green","blue","red"),          
+       lwd = 2)                
+```
+
+```{r}
+#hacemos un gráfico nuevo en el que se vea la distribución a posteriori y la de
+#verosimilitud
+
+fmax <- max(pxpredpost,vero)
+plot(secuencia_post,pxpredpost,type='l',lwd=2,col='green',ylim=c(0,fmax),xlab=expression(theta),ylab='f')
+lines(secuencia_vero,vero,type='l',lwd=2,col="blue")
+legend(x = "topleft",         
+       legend = c("dist posteriori","f verosimilitud"), 
+       col = c("green","blue"),          
+       lwd = 2)                
+```
+
+Ahora vamos a graficar las distribuciones predictivas:
+Por un lado la distribución que usariamos según el método de inferencia clásica 
+en azul , en verde la distribución predictiva a posteriori y en rojo la 
+distribución predictiva a priori.
+
+
+```{r}
+# Comparación de predicciones
+
+EMV_clasico=(x <- sum(datos1$count[(datos1$season == 4)]))/180
+pxpredclas=dpois(secuencia_vero, EMV_clasico)
+prob_posteriori <- dnbinom(x = secuencia_vero,size = apost,prob = (bpost)/(bpost+1))
+prob_prior <- dnbinom(x = secuencia_vero,size = alpha,prob = (beta)/(beta+1))
+
+plot(secuencia_vero,pxpredclas,type='h',lwd=2,col='blue',xlab='y',ylab='p')
+#plot(xgrid,probabilidades_posteriori,type='h',lwd=2,col='blue',xlab='y',ylab='p')
+#plot(xgrid,probabilidades_priori,type='h',lwd=2,col='blue',xlab='y',ylab='p')
+
+
+lines(secuencia_vero,prob_posteriori,type='h',lwd=2,col='green')
+lines(secuencia_vero,prob_prior,type='h',lwd=2,col='red')
+
+legend(x = "topright",        
+       legend = c("pred clásica","Predictiva posteriori", "Predictiva a priori"), 
+       col = c("blue","green","red"),         
+       lwd = 3, inset = c(0,-0.28), xpd = TRUE)                
+```
+
+
+
+
+# Contraste de hipotesis
+A la hora de realizar el contraste de hipótesis, optaremos por utilizar un contraste unilateral. Esto es debido a la mayor complejidad que supone realizar un contraste bilateral en inferencia bayesiana al tener que considerar ambas direcciones.
+
+Es importante notar que en el contraste bayesiano de hipótesis nula no es posible utilizar densidades a priori continuas pues en este caso dichas distribuciones a priori ( al igual que las distribuciones a posteriori) otorgarían probabilidad cero a p0. Por tanto, la dificultad en los contrastes bilaterales en inferencia bayesiana guarda relación con la interpretación de la probabilidad acumulada en el contexto de distribuciones continuas( ya q puede ser necesario usar intervalos).
+
+
+
+Otra diferencia respecto a la inferencia bayesiana a la hora de realizar los contrastes de hipótesis será que en inferencia bayesiana no contamos con la existencia del pvalor. En este caso, para poder aceptar H0 o aceptar H1, nos quedaremos con el que obtenemos una probabilidad mayo. Esto se debe a que la incertidumbre se toma de forma distinta y se usa la distribución a posteriori.
+
+
+H0 : θ ≤ 1700
+H1 : θ > 1700
+```{r}
+
+alpha_posteriori = alpha + x
+beta_posteriori = beta + t
+(P_H0= pgamma(1700, alpha_posteriori, beta_posteriori,lower.tail = TRUE))
+```
+```{r}
+(P_H1= pgamma(1700, alpha_posteriori, beta_posteriori, lower.tail = FALSE))
+
+```
+Realizamos primero un contraste de hipotesis con un valor cercano a nuestro valor alpha (α=1672) que es 1700 y aceptamos la hipotesis alternativa por lo que será mayor a 1700 debido a que obtenemos una probabilidad a posteriori de 1.
+
+H0 : θ ≤ 2500
+H1 : θ > 2500
+```{r}
+(P_H0_2 = pgamma(2500, alpha_posteriori, beta_posteriori,lower.tail = TRUE))
+```
+```{r}
+(P_H1_2 = pgamma(2500, alpha_posteriori, beta_posteriori, lower.tail = FALSE))
+
+```
+En este segundo contraste tomamos un valor cercano a la estimacion puntual previamente obtenida (2496.352 ) que es 2500. A diferencia del primer contraste, en este debemos quedarnos con la hipotesis nula ya que obtenemos una probabilidad del 75,70% frente a un 24.29%.
+
+
+
+
+
+
+# Bibliografia
+
+Epidat 4: Ayuda de Inferencia sobre parámetros. Julio 2016.
+
+Constraste de Hipótesis: Clásico vs Bayesiano Alamilla 2010 Contraste.
